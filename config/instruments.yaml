@@ -1,0 +1,93 @@
+# Instrument Configuration
+# Defines trading pairs and their exchange-specific symbols
+
+instruments:
+  # =============================================================================
+  # BTC-USDT (Phase 1 - Active)
+  # =============================================================================
+  - id: "BTC-USDT-PERP"
+    name: "BTC/USDT Perpetual"
+    type: "perpetual"
+    base: "BTC"
+    quote: "USDT"
+    enabled: true
+    
+    # Exchange-specific symbol mappings
+    exchange_symbols:
+      binance:
+        symbol: "btcusdt"
+        stream: "btcusdt@depth20@100ms"
+        ticker_stream: "btcusdt@ticker"
+        mark_price_stream: "btcusdt@markPrice"
+      okx:
+        symbol: "BTC-USDT-SWAP"
+        inst_type: "SWAP"
+    
+    # Data capture settings
+    depth_levels: 20
+    
+  - id: "BTC-USDT-SPOT"
+    name: "BTC/USDT Spot"
+    type: "spot"
+    base: "BTC"
+    quote: "USDT"
+    enabled: true
+    
+    exchange_symbols:
+      binance:
+        symbol: "btcusdt"
+        stream: "btcusdt@depth20@100ms"
+        ticker_stream: "btcusdt@ticker"
+      okx:
+        symbol: "BTC-USDT"
+        inst_type: "SPOT"
+    
+    depth_levels: 20
+
+  # =============================================================================
+  # ETH-USDT (Phase 2 - Disabled for now)
+  # =============================================================================
+  - id: "ETH-USDT-PERP"
+    name: "ETH/USDT Perpetual"
+    type: "perpetual"
+    base: "ETH"
+    quote: "USDT"
+    enabled: false  # Enable in Phase 2
+    
+    exchange_symbols:
+      binance:
+        symbol: "ethusdt"
+        stream: "ethusdt@depth20@100ms"
+        ticker_stream: "ethusdt@ticker"
+        mark_price_stream: "ethusdt@markPrice"
+      okx:
+        symbol: "ETH-USDT-SWAP"
+        inst_type: "SWAP"
+    
+    depth_levels: 20
+    
+  - id: "ETH-USDT-SPOT"
+    name: "ETH/USDT Spot"
+    type: "spot"
+    base: "ETH"
+    quote: "USDT"
+    enabled: false  # Enable in Phase 2
+    
+    exchange_symbols:
+      binance:
+        symbol: "ethusdt"
+        stream: "ethusdt@depth20@100ms"
+        ticker_stream: "ethusdt@ticker"
+      okx:
+        symbol: "ETH-USDT"
+        inst_type: "SPOT"
+    
+    depth_levels: 20
+
+# Instrument pairs for basis calculation
+# Defines which spot instrument to use for each perpetual
+basis_pairs:
+  - perp: "BTC-USDT-PERP"
+    spot: "BTC-USDT-SPOT"
+  - perp: "ETH-USDT-PERP"
+    spot: "ETH-USDT-SPOT"

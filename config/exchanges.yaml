@@ -1,0 +1,64 @@
+# Exchange Configuration
+# Defines connection details for each supported exchange
+
+exchanges:
+  binance:
+    enabled: true
+    
+    # WebSocket endpoints
+    websocket:
+      futures: "wss://fstream.binance.com/stream"
+      spot: "wss://stream.binance.com:9443/ws"
+    
+    # REST endpoints (for fallback and metadata)
+    rest:
+      futures: "https://fapi.binance.com"
+      spot: "https://api.binance.com"
+    
+    # Connection settings
+    connection:
+      rate_limit_per_second: 10
+      reconnect_delay_seconds: 5
+      max_reconnect_attempts: 10
+      ping_interval_seconds: 30
+      ping_timeout_seconds: 10
+    
+    # Stream configuration
+    streams:
+      orderbook_depth: 20          # Number of levels (5, 10, 20)
+      orderbook_speed: "100ms"     # Update speed (100ms, 1000ms)
+    
+  okx:
+    enabled: true
+    
+    # WebSocket endpoints
+    websocket:
+      public: "wss://ws.okx.com:8443/ws/v5/public"
+    
+    # REST endpoints
+    rest:
+      base: "https://www.okx.com"
+    
+    # Connection settings
+    connection:
+      rate_limit_per_second: 10
+      reconnect_delay_seconds: 5
+      max_reconnect_attempts: 10
+      ping_interval_seconds: 25
+      ping_timeout_seconds: 10
+    
+    # Stream configuration
+    streams:
+      orderbook_channel: "books5"   # books5 = top 5 levels, books = full
+      
+# Future exchanges (disabled by default)
+# 
+#   bybit:
+#     enabled: false
+#     websocket:
+#       public: "wss://stream.bybit.com/v5/public/linear"
+#
+#   deribit:
+#     enabled: false
+#     websocket:
+#       public: "wss://www.deribit.com/ws/api/v2"

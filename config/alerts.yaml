@@ -1,0 +1,331 @@
+# Alert Configuration
+# Defines alert types, thresholds, and behavior
+
+# =============================================================================
+# GLOBAL SETTINGS
+# =============================================================================
+global:
+  throttle_seconds: 60              # Min time between same alert type
+  dedup_window_seconds: 300         # Group related alerts
+  auto_resolve: true                # Resolve when condition clears
+
+# =============================================================================
+# PRIORITY DEFINITIONS
+# =============================================================================
+priorities:
+  P1:
+    name: "Critical"
+    description: "Immediate action required"
+    channels:
+      - console
+      - slack
+    color: "#dc3545"                # Red
+    
+  P2:
+    name: "Warning"
+    description: "Investigate soon"
+    channels:
+      - console
+      - slack
+    escalation:
+      to: P1
+      after_seconds: 300            # Escalate to P1 after 5 minutes
+    color: "#ffc107"                # Yellow
+    
+  P3:
+    name: "Info"
+    description: "Awareness only"
+    channels:
+      - console
+    color: "#17a2b8"                # Blue
+
+# =============================================================================
+# ALERT TYPE DEFINITIONS
+# =============================================================================
+definitions:
+  # ---------------------------------------------------------------------------
+  # SPREAD ALERTS
+  # ---------------------------------------------------------------------------
+  spread_warning:
+    name: "Spread Warning"
+    description: "Bid-ask spread exceeds warning threshold"
+    metric: "spread_bps"
+    default_priority: P2
+    default_severity: warning
+    condition: gt                   # Greater than
+    requires_zscore: true
+    escalates_to: spread_critical
+    throttle_seconds: 60
+    
+  spread_critical:
+    name: "Spread Critical"
+    description: "Bid-ask spread exceeds critical threshold"
+    metric: "spread_bps"
+    default_priority: P1
+    default_severity: critical
+    condition: gt
+    requires_zscore: true
+    throttle_seconds: 30            # More frequent for critical
+    
+  # ---------------------------------------------------------------------------
+  # BASIS ALERTS
+  # ---------------------------------------------------------------------------
+  basis_warning:
+    name: "Basis Warning"
+    description: "Perp-spot basis exceeds warning threshold"
+    metric: "basis_bps"
+    default_priority: P2
+    default_severity: warning
+    condition: abs_gt               # Absolute value greater than
+    requires_zscore: true
+    persistence_seconds: 120        # Must persist for 2 minutes
+    escalates_to: basis_critical
+    
+  basis_critical:
+    name: "Basis Critical"
+    description: "Perp-spot basis exceeds critical threshold"
+    metric: "basis_bps"
+    default_priority: P1
+    default_severity: critical
+    condition: abs_gt
+    requires_zscore: true
+    persistence_seconds: 60         # Must persist for 1 minute
+    
+  # ---------------------------------------------------------------------------
+  # DEPTH ALERTS
+  # ---------------------------------------------------------------------------
+  depth_warning:
+    name: "Depth Warning"
+    description: "Order book depth below warning threshold"
+    metric: "depth_10bps_total"
+    default_priority: P2
+    default_severity: warning
+    condition: lt                   # Less than
+    requires_zscore: false          # Absolute value matters
+    escalates_to: depth_critical
+    
+  depth_critical:
+    name: "Depth Critical"
+    description: "Order book depth below critical threshold"
+    metric: "depth_10bps_total"
+    default_priority: P1
+    default_severity: critical
+    condition: lt
+    requires_zscore: false
+    
+  depth_drop:
+    name: "Depth Drop"
+    description: "Sudden drop in order book depth"
+    metric: "depth_10bps_change_pct"
+    default_priority: P2
+    default_severity: warning
+    condition: lt                   # Negative = drop
+    requires_zscore: false
+    
+  # ---------------------------------------------------------------------------
+  # MARK PRICE ALERTS
+  # ---------------------------------------------------------------------------
+  mark_deviation_warning:
+    name: "Mark Price Deviation Warning"
+    description: "Mark price deviates from index"
+    metric: "mark_index_deviation_bps"
+    default_priority: P2
+    default_severity: warning
+    condition: abs_gt
+    requires_zscore: true
+    escalates_to: mark_deviation_critical
+    
+  mark_deviation_critical:
+    name: "Mark Price Deviation Critical"
+    description: "Mark price significantly deviates from index"
+    metric: "mark_index_deviation_bps"
+    default_priority: P1
+    default_severity: critical
+    condition: abs_gt
+    requires_zscore: true
+    
+  # ---------------------------------------------------------------------------
+  # CROSS-EXCHANGE ALERTS
+  # ---------------------------------------------------------------------------
+  cross_exchange_divergence:
+    name: "Cross-Exchange Divergence"
+    description: "Price divergence between exchanges"
+    metric: "cross_exchange_spread_bps"
+    default_priority: P2
+    default_severity: warning
+    condition: abs_gt
+    requires_zscore: false
+    persistence_seconds: 10
+    
+  # ---------------------------------------------------------------------------
+  # SYSTEM ALERTS
+  # ---------------------------------------------------------------------------
+  data_gap:
+    name: "Data Gap Detected"
+    description: "Gap in data stream detected"
+    metric: "gap_duration_seconds"
+    default_priority: P3
+    default_severity: info
+    condition: gt
+    requires_zscore: false
+    throttle_seconds: 30
+
+# =============================================================================
+# PER-INSTRUMENT THRESHOLDS
+# =============================================================================
+thresholds:
+  # ---------------------------------------------------------------------------
+  # BTC-USDT-PERP
+  # ---------------------------------------------------------------------------
+  BTC-USDT-PERP:
+    spread_warning:
+      threshold: 3.0                # bps
+      zscore: 2.0                   # σ
+    spread_critical:
+      threshold: 5.0
+      zscore: 3.0
+    basis_warning:
+      threshold: 10.0
+      zscore: 2.0
+    basis_critical:
+      threshold: 20.0
+      zscore: 3.0
+    depth_warning:
+      threshold: 500000             # USD
+    depth_critical:
+      threshold: 200000
+    depth_drop:
+      threshold: -30                # percent
+    mark_deviation_warning:
+      threshold: 15.0
+      zscore: 2.0
+    mark_deviation_critical:
+      threshold: 30.0
+      zscore: 3.0
+    cross_exchange_divergence:
+      threshold: 5.0
+    data_gap:
+      threshold: 5                  # seconds
+      
+  # ---------------------------------------------------------------------------
+  # BTC-USDT-SPOT
+  # ---------------------------------------------------------------------------
+  BTC-USDT-SPOT:
+    spread_warning:
+      threshold: 2.0                # Spot typically tighter
+      zscore: 2.0
+    spread_critical:
+      threshold: 4.0
+      zscore: 3.0
+    depth_warning:
+      threshold: 300000
+    depth_critical:
+      threshold: 100000
+    depth_drop:
+      threshold: -30
+    cross_exchange_divergence:
+      threshold: 3.0
+    data_gap:
+      threshold: 5
+      
+  # ---------------------------------------------------------------------------
+  # ETH-USDT-PERP (for future use)
+  # ---------------------------------------------------------------------------
+  ETH-USDT-PERP:
+    spread_warning:
+      threshold: 5.0                # ETH more volatile
+      zscore: 2.0
+    spread_critical:
+      threshold: 10.0
+      zscore: 3.0
+    basis_warning:
+      threshold: 15.0
+      zscore: 2.0
+    basis_critical:
+      threshold: 30.0
+      zscore: 3.0
+    depth_warning:
+      threshold: 200000             # Less liquid than BTC
+    depth_critical:
+      threshold: 75000
+    depth_drop:
+      threshold: -30
+    mark_deviation_warning:
+      threshold: 20.0
+      zscore: 2.0
+    mark_deviation_critical:
+      threshold: 40.0
+      zscore: 3.0
+    cross_exchange_divergence:
+      threshold: 8.0
+    data_gap:
+      threshold: 5
+      
+  # ---------------------------------------------------------------------------
+  # ETH-USDT-SPOT (for future use)
+  # ---------------------------------------------------------------------------
+  ETH-USDT-SPOT:
+    spread_warning:
+      threshold: 4.0
+      zscore: 2.0
+    spread_critical:
+      threshold: 8.0
+      zscore: 3.0
+    depth_warning:
+      threshold: 150000
+    depth_critical:
+      threshold: 50000
+    depth_drop:
+      threshold: -30
+    cross_exchange_divergence:
+      threshold: 5.0
+    data_gap:
+      threshold: 5
+      
+  # ---------------------------------------------------------------------------
+  # DEFAULT FALLBACK (for new instruments)
+  # ---------------------------------------------------------------------------
+  "*":
+    spread_warning:
+      threshold: 10.0
+      zscore: 2.0
+    spread_critical:
+      threshold: 20.0
+      zscore: 3.0
+    basis_warning:
+      threshold: 25.0
+      zscore: 2.0
+    basis_critical:
+      threshold: 50.0
+      zscore: 3.0
+    depth_warning:
+      threshold: 100000
+    depth_critical:
+      threshold: 50000
+    depth_drop:
+      threshold: -40
+    mark_deviation_warning:
+      threshold: 25.0
+      zscore: 2.0
+    mark_deviation_critical:
+      threshold: 50.0
+      zscore: 3.0
+    cross_exchange_divergence:
+      threshold: 10.0
+    data_gap:
+      threshold: 5
+
+# =============================================================================
+# CHANNEL CONFIGURATION
+# =============================================================================
+channels:
+  console:
+    enabled: true
+    format: "structured"            # structured | simple
+    
+  slack:
+    enabled: false                  # Enable when webhook is configured
+    webhook_url: ""                 # Set via SLACK_WEBHOOK_URL env var
+    channel: "#market-ops"
+    username: "Market Surveillance"
+    icon_emoji: ":chart_with_upwards_trend:"

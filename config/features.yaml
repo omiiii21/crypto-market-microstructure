@@ -1,0 +1,146 @@
+# Feature Configuration
+# Feature flags for modular components
+
+# =============================================================================
+# Z-SCORE CALCULATION
+# =============================================================================
+zscore:
+  enabled: true
+  
+  # Rolling window configuration
+  window_size: 300                  # 5 minutes at 1 sample/sec
+  
+  # Warmup guards (CRITICAL - prevents false alerts)
+  min_samples: 30                   # Don't compute z-score until 30 samples (~30 sec)
+  min_std: 0.0001                   # Avoid divide-by-zero on flat markets
+  
+  # Logging
+  warmup_log_interval: 10           # Log warmup progress every 10 seconds
+  
+  # Gap handling
+  reset_on_gap: true                # Reset z-score buffer when gap detected
+  reset_on_gap_threshold: 5         # Only reset if gap > 5 seconds
+
+# =============================================================================
+# GAP HANDLING
+# =============================================================================
+gap_handling:
+  # Gap detection
+  mark_gaps: true                   # Insert gap markers in database
+  gap_threshold_seconds: 5          # Minimum gap duration to record
+  
+  # Gap behavior
+  interpolate: false                # NEVER interpolate (fabricated data is bad)
+  alert_on_gap: true                # Generate P3 alert for gaps
+  
+  # Sequence tracking
+  track_sequence_ids: true          # Use exchange sequence IDs for gap detection
+
+# =============================================================================
+# REGIME DETECTION (Future - Disabled)
+# =============================================================================
+regime_detection:
+  enabled: false                    # Enable in future iteration
+  
+  # When enabled, these override alert thresholds based on detected regime
+  # regimes:
+  #   volatile:
+  #     description: "High volatility regime"
+  #     trigger:
+  #       metric: "spread_volatility_5m"
+  #       condition: "gt"
+  #       threshold: 2.0
+  #     threshold_multiplier: 2.0    # Double all thresholds
+  #     
+  #   funding_settlement:
+  #     description: "Funding settlement window"
+  #     trigger:
+  #       type: "time_window"
+  #       windows:
+  #         - "23:45-00:15"          # UTC
+  #         - "07:45-08:15"
+  #         - "15:45-16:15"
+  #     threshold_multiplier: 3.0
+  #     suppress_basis_alerts: true
+
+# =============================================================================
+# BACKFILL (Future - Disabled)
+# =============================================================================
+backfill:
+  enabled: false                    # Enable in future iteration
+  
+  # When enabled, attempts to backfill data on reconnection
+  # Note: Order book history cannot be backfilled (only current state from REST)
+  # backfill_trades: true
+  # backfill_funding: true
+  # backfill_klines: true
+  # max_gap_seconds: 300            # Don't backfill gaps longer than 5 minutes
+
+# =============================================================================
+# DATA CAPTURE
+# =============================================================================
+data_capture:
+  # Snapshot frequency
+  realtime_interval_ms: 100         # Process data every 100ms
+  storage_interval_seconds: 1       # Store to PostgreSQL every 1 second
+  
+  # Depth configuration
+  depth_levels: 20                  # Capture top 20 levels (static for now)
+  
+  # Future: Adaptive depth (disabled)
+  # adaptive_depth:
+  #   enabled: false
+  #   normal_levels: 20
+  #   elevated_levels: 50
+  #   trigger_metric: "spread_volatility_1m"
+  #   trigger_threshold: 1.5
+
+# =============================================================================
+# STORAGE
+# =============================================================================
+storage:
+  redis:
+    # Key TTLs
+    current_state_ttl_seconds: 60   # Current order book state
+    zscore_buffer_ttl_seconds: 600  # Z-score rolling buffer
+    alert_dedup_ttl_seconds: 60     # Alert deduplication window
+    
+  postgres:
+    # Retention (handled by TimescaleDB policies)
+    snapshot_retention_days: 30
+    metrics_retention_days: 90
+    alerts_retention_days: 365
+    
+    # Compression (TimescaleDB)
+    compress_after_days: 7
+
+# =============================================================================
+# DASHBOARD
+# =============================================================================
+dashboard:
+  # Refresh intervals
+  current_state_refresh_ms: 1000    # Update current state every 1 second
+  charts_refresh_ms: 5000           # Update historical charts every 5 seconds
+  alerts_refresh_ms: 1000           # Update alert list every 1 second
+  health_refresh_ms: 1000           # Update health panel every 1 second
+  
+  # Default view settings
+  default_time_range: "1h"          # Default time range for charts
+  default_exchange: "all"           # "all", "binance", "okx"
+  
+  # Chart settings
+  max_data_points: 3600             # Max points per chart (1 hour at 1/sec)
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+logging:
+  format: "json"                    # json | text
+  level: "INFO"                     # DEBUG | INFO | WARNING | ERROR
+  
+  # Component-specific levels (optional)
+  # levels:
+  #   adapters: DEBUG
+  #   metrics: INFO
+  #   detection: INFO
+  #   dashboard: WARNING
