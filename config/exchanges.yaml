@@ -8,7 +8,7 @@ exchanges:
     # WebSocket endpoints
     websocket:
       futures: "wss://fstream.binance.com/stream"
-      spot: "wss://stream.binance.com:9443/ws"
+      spot: "wss://stream.binance.com:9443/stream"  # Use /stream for combined streams
     
     # REST endpoints (for fallback and metadata)
     rest:
@@ -50,6 +50,10 @@ exchanges:
     # Stream configuration
     streams:
       orderbook_channel: "books5"   # books5 = top 5 levels, books = full
+                                    # NOTE: OKX uses global seqId across ALL updates.
+                                    # When using "books5", seqId will jump because we only
+                                    # receive updates affecting top 5 levels. This is NORMAL.
+      ticker_channel: "tickers"     # 24hr ticker stream
       
 # Future exchanges (disabled by default)
 # 

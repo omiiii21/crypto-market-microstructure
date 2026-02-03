@@ -1,9 +1,9 @@
 # Crypto Derivatives Market Quality & Pricing Surveillance System
 
 ## Product Requirements Document (PRD)
-**Version**: 2.0  
+**Version**: 2.1  
 **Status**: Final Draft  
-**Last Updated**: January 2025
+**Last Updated**: February 2025
 
 ---
 
@@ -49,7 +49,7 @@ The user is an exchange's Market Operations team, not a trader. The goal is mark
 | **Instruments** | BTC-USDT Perpetual, BTC-USDT Spot |
 | **Data Source** | WebSocket (primary), REST polling (fallback) |
 | **Storage** | Redis (real-time state), TimescaleDB/PostgreSQL (historical) |
-| **Dashboard** | Plotly Dash |
+| **Dashboard** | FastAPI + Plotly.js (ASGI, async-native) |
 | **Deployment** | Docker Compose |
 
 ### 2.2 Modularity Requirements
@@ -784,81 +784,7 @@ zscore:
 
 ### 7.1 High-Level Components
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              DATA LAYER                                      │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │
-│  │ Binance Adapter │  │   OKX Adapter   │  │ [Future Exchange]│              │
-│  │   (WebSocket)   │  │   (WebSocket)   │  │                 │              │
-│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘              │
-│           │                    │                    │                        │
-│           └────────────────────┼────────────────────┘                        │
-│                                ▼                                             │
-│                    ┌───────────────────────┐                                 │
-│                    │   Data Normalizer     │                                 │
-│                    │ (Unified Schema)      │                                 │
-│                    └───────────┬───────────┘                                 │
-└────────────────────────────────┼─────────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           PROCESSING LAYER                                   │
-│                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                      Metrics Engine                                  │    │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │    │
-│  │  │   Spread     │  │    Depth     │  │    Basis     │               │    │
-│  │  │  Calculator  │  │  Calculator  │  │  Calculator  │               │    │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘               │    │
-│  └─────────────────────────────┬───────────────────────────────────────┘    │
-│                                │                                             │
-│                                ▼                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                   Anomaly Detection Engine                           │    │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │    │
-│  │  │  Threshold   │  │  Persistence │  │   Z-Score    │               │    │
-│  │  │   Detector   │  │   Detector   │  │   Detector   │               │    │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘               │    │
-│  └─────────────────────────────┬───────────────────────────────────────┘    │
-│                                │                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │              [FUTURE] Regime Detection Module                        │    │
-│  │                    (Disabled by default)                             │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-└────────────────────────────────┼─────────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            STORAGE LAYER                                     │
-│                                                                              │
-│  ┌─────────────────────────┐      ┌─────────────────────────┐               │
-│  │         Redis           │      │   TimescaleDB/PostgreSQL │               │
-│  │                         │      │                          │               │
-│  │  • Current state        │      │  • Historical snapshots  │               │
-│  │  • Rolling windows      │      │  • Metric time-series    │               │
-│  │  • Active alerts        │      │  • Alert history         │               │
-│  │  • Z-score buffers      │      │  • Gap markers           │               │
-│  │  • Pub/Sub for updates  │      │  • Configuration         │               │
-│  └─────────────────────────┘      └─────────────────────────┘               │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          PRESENTATION LAYER                                  │
-│                                                                              │
-│  ┌─────────────────────────┐      ┌─────────────────────────┐               │
-│  │     Plotly Dash         │      │      Alert Manager       │               │
-│  │                         │      │                          │               │
-│  │  • Spread heatmaps      │      │  • Console output        │               │
-│  │  • Basis time-series    │      │  • Slack (mock)          │               │
-│  │  • Depth charts         │      │  • Alert history         │               │
-│  │  • Cross-exchange view  │      │  • Throttling logic      │               │
-│  │  • Per-instrument views │      │  • Escalation logic      │               │
-│  └─────────────────────────┘      └─────────────────────────┘               │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+![High Level Design](./HLD_crypto.png)
 
 ### 7.2 Data Flow
 
@@ -870,7 +796,10 @@ zscore:
 5. Metrics Engine → Subscribes, calculates metrics + z-scores
 6. Anomaly Detector → Evaluates dual conditions, generates alerts
 7. TimescaleDB → Persists metrics at 1s intervals
-8. Dashboard → Polls Redis/TimescaleDB, renders visualizations
+8. FastAPI Dashboard:
+   a. REST API serves current state, alerts, history on HTTP request
+   b. WebSocket pushes real-time updates to connected browsers
+   c. Browser renders Plotly.js charts from JSON data
 ```
 
 ### 7.3 Exchange Adapter Interface
@@ -1693,70 +1622,360 @@ CMD ["python", "-m", "services.data_ingestion.main"]
 | Data Ingestion | 0.5 core | 256 MB | I/O bound (WebSocket) |
 | Metrics Engine | 1 core | 512 MB | Numpy/Pandas calculations |
 | Anomaly Detector | 0.5 core | 256 MB | Light computation |
-| Dashboard | 0.5 core | 512 MB | Plotly rendering |
-| **Total** | ~4 cores | ~3 GB | Runs on laptop |
+| Dashboard API | 0.5 core | 256 MB | FastAPI + Uvicorn (lighter than Dash) |
+| **Total** | ~4 cores | ~2.8 GB | Runs on laptop |
 
 ---
 
 ## 11. Dashboard Specifications
 
-### 11.1 Dashboard Layout
+### 11.1 Architecture Overview
+
+The dashboard uses a **decoupled API-first architecture**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  CRYPTO MARKET SURVEILLANCE                          [Binance] [OKX] [Both] │
-│  BTC-USDT                                            Last Update: 12:34:56  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─────────────────────────┐  ┌─────────────────────────┐                   │
-│  │   CURRENT STATE         │  │   ALERTS (Active: 2)    │                   │
-│  │                         │  │                         │                   │
-│  │  Spread:  2.1 bps  🟢   │  │  🟡 P2: Basis > 10 bps  │                   │
-│  │  Z-Score: 0.8σ         │  │     12.3 bps | 2.3σ     │                   │
-│  │  Depth:   $1.2M    🟢   │  │     Duration: 2m 15s    │                   │
-│  │  Basis:   12.3 bps 🟡   │  │                         │                   │
-│  │  Z-Score: 2.3σ    ⚠️   │  │  🟢 No P1 alerts        │                   │
-│  │  Imbal:   0.12     🟢   │  │                         │                   │
-│  └─────────────────────────┘  └─────────────────────────┘                   │
-│                                                                              │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │   SPREAD TIME SERIES (1 hour)                      [5m|15m|1h|4h|24h] │  │
-│  │   [Interactive Plotly chart with Binance + OKX lines]                 │  │
-│  │   [Warning/Critical threshold bands shown]                            │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-│                                                                              │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │   BASIS TIME SERIES (1 hour)                                          │  │
-│  │   [Basis in bps with ±threshold bands]                                │  │
-│  │   [Z-score overlay option]                                            │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-│                                                                              │
-│  ┌─────────────────────────────┐  ┌─────────────────────────────────────┐  │
-│  │   DEPTH HEATMAP             │  │   CROSS-EXCHANGE COMPARISON        │  │
-│  │   [5/10/25 bps levels]      │  │   [Binance vs OKX mid prices]      │  │
-│  │   [Bid/Ask split]           │  │   [Divergence in bps]              │  │
-│  └─────────────────────────────┘  └─────────────────────────────────────┘  │
-│                                                                              │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │   SYSTEM HEALTH                                                        │  │
-│  │   Binance: 🟢 Connected | Lag: 23ms | Msgs: 1,234/min | Gaps: 0      │  │
-│  │   OKX:     🟢 Connected | Lag: 18ms | Msgs: 1,189/min | Gaps: 0      │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-│                                                                              │
+│                      DASHBOARD ARCHITECTURE                                 │
+│                                                                             │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                    BROWSER (Client-Side)                            │   │
+│   │                                                                     │   │
+│   │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │   │
+│   │   │  Plotly.js   │  │  WebSocket   │  │    Fetch     │              │   │
+│   │   │  (charts)    │  │  (real-time) │  │  (REST API)  │              │   │
+│   │   └──────────────┘  └──────────────┘  └──────────────┘              │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                    ▲              ▲              ▲                          │
+│                    │   WebSocket  │    HTTP      │                          │
+│                    │   (push)     │   (request)  │                          │
+│                    ▼              ▼              ▼                          │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                    FastAPI Server (ASGI)                            │   │
+│   │                                                                     │   │
+│   │   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │   │
+│   │   │ /ws/updates  │  │  /api/*      │  │ / (static)   │              │   │
+│   │   │  WebSocket   │  │  REST API    │  │  HTML/JS/CSS │              │   │
+│   │   └──────┬───────┘  └──────┬───────┘  └──────────────┘              │   │
+│   │          │                 │                                        │   │
+│   │          ▼                 ▼                                        │   │
+│   │   ┌──────────────────────────────────────────────────────────────┐  │   │
+│   │   │            Async Database Clients (no event loop issues)     │  │   │
+│   │   │      redis.asyncio (real-time)    asyncpg (historical)       │  │   │
+│   │   └──────────────────────────────────────────────────────────────┘  │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│       Async-native: No event loop conflicts (unlike Dash/Flask)             │
+│       Real-time: WebSocket push, not polling                                │
+│       Scalable: Stateless API, multiple instances possible                  │
+│       Documented: Auto-generated OpenAPI/Swagger                            │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 11.2 Dashboard Views
+### 11.2 Technology Stack
+
+| Component | Technology | Rationale |
+|-----------|------------|-----------|
+| Backend | FastAPI | Async-native ASGI, auto OpenAPI docs, WebSocket support |
+| Server | Uvicorn | High-performance ASGI server |
+| Charting | Plotly.js | Same charts as Dash, runs in browser |
+| Real-time | WebSocket | Native FastAPI support, true server push |
+| Styling | CSS (dark theme) | Professional monitoring aesthetic |
+| Redis | redis.asyncio | Async client, no event loop conflicts |
+| PostgreSQL | asyncpg | Async client, high performance |
+
+### 11.3 Dashboard Layout
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  CRYPTO MARKET MICROSTRUCTURE              [Binance] [OKX] [Both]           │
+│  BTC-USDT-PERP                            [5m|15m|1h|4h|24h]   12:34:56 UTC │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────┐  ┌─────────────────────────────────────────┐   │
+│  │   CURRENT STATE         │  │   ACTIVE ALERTS (2)                     │   │
+│  │                         │  │                                         │   │
+│  │  Spread:  2.1 bps  🟢  │   │  🟡 P2: Basis Warning                  │   │
+│  │  Z-Score: 0.8σ          │  │     BTC-USDT-PERP | 12.3 bps | 2.3σ     │   │
+│  │  Depth:   $1.2M    🟢  │  │     Duration: 2m 15s                     │   │
+│  │  Basis:   12.3 bps 🟡  │  │                                          │   │
+│  │  Z-Score: 2.3σ    ⚠️   │  │  🟢 No P1 (Critical) alerts             │   │
+│  │  Imbalance: 0.12   🟢  │  │                                          │   │
+│  └─────────────────────────┘  └─────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │   SPREAD TIME SERIES                                                  │  │
+│  │   [Plotly.js line chart - Binance (blue) + OKX (orange)]              │  │
+│  │   [Warning threshold (yellow dashed) + Critical (red dashed)]         │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │   BASIS TIME SERIES                                                   │  │
+│  │   [Plotly.js line chart - Basis in bps]                               │  │
+│  │   [ Show Z-Score Overlay]                                             │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌─────────────────────────────┐  ┌─────────────────────────────────────┐   │
+│  │   ORDER BOOK DEPTH          │  │   CROSS-EXCHANGE COMPARISON         │   │
+│  │   [Bar: 5/10/25 bps levels] │  │   Binance: $100,234.56              │   │
+│  │   [Bid green | Ask red]     │  │   OKX:     $100,231.23              │   │
+│  │   Imbalance: 0.12           │  │   Divergence: 3.3 bps               │   │
+│  └─────────────────────────────┘  └─────────────────────────────────────┘   │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │   SYSTEM HEALTH                                                       │  │
+│  │   Binance: 🟢 Connected | Lag: 23ms | Rate: 1,234/min | Gaps: 0      │  │
+│  │   OKX:     🟢 Connected | Lag: 18ms | Rate: 1,189/min | Gaps: 0      │  │
+│  │   Redis: 🟢 | PostgreSQL: 🟢 | Uptime: 4h 23m                        │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 11.4 REST API Specification
+
+**Base URL**: `http://localhost:8050/api`
+
+#### Current State
+
+```http
+GET /api/state/{exchange}/{instrument}
+
+Response 200:
+{
+  "exchange": "binance",
+  "instrument": "BTC-USDT-PERP",
+  "timestamp": "2025-01-26T12:34:56.789Z",
+  "spread_bps": "2.1",
+  "spread_zscore": "0.8",
+  "spread_zscore_status": "active",
+  "spread_warmup_progress": "30/30",
+  "mid_price": "100234.56",
+  "depth_5bps": "523000",
+  "depth_10bps": "1234000", 
+  "depth_25bps": "3456000",
+  "imbalance": "0.12",
+  "basis_bps": "12.3",
+  "basis_zscore": "2.3"
+}
+```
+
+#### Active Alerts
+
+```http
+GET /api/alerts?status=active&priority=P1,P2
+
+Response 200:
+{
+  "alerts": [
+    {
+      "alert_id": "alert_abc123",
+      "type": "basis_warning",
+      "priority": "P2",
+      "exchange": "binance",
+      "instrument": "BTC-USDT-PERP",
+      "metric": "basis_bps",
+      "value": "12.3",
+      "threshold": "10.0",
+      "zscore": "2.3",
+      "triggered_at": "2025-01-26T12:32:41Z",
+      "duration_seconds": 135
+    }
+  ],
+  "counts": { "P1": 0, "P2": 1, "P3": 0, "total": 1 }
+}
+```
+
+#### Historical Metrics
+
+```http
+GET /api/metrics/{metric_type}/{exchange}/{instrument}
+    ?start=2025-01-26T11:00:00Z
+    &end=2025-01-26T12:00:00Z
+    &interval=1m
+
+metric_type: spread | basis | depth
+
+Response 200:
+{
+  "metric": "spread",
+  "exchange": "binance", 
+  "instrument": "BTC-USDT-PERP",
+  "interval": "1m",
+  "data": [
+    { "timestamp": "2025-01-26T11:00:00Z", "value": "2.1", "zscore": "0.8" },
+    { "timestamp": "2025-01-26T11:01:00Z", "value": "2.3", "zscore": "1.1" },
+    ...
+  ]
+}
+```
+
+#### System Health
+
+```http
+GET /api/health
+
+Response 200:
+{
+  "exchanges": {
+    "binance": {
+      "status": "connected",
+      "lag_ms": 23,
+      "message_rate": 1234,
+      "gaps_1h": 0,
+      "last_message": "2025-01-26T12:34:56Z"
+    },
+    "okx": { ... }
+  },
+  "infrastructure": {
+    "redis": "connected",
+    "postgres": "connected"
+  },
+  "uptime_seconds": 15780
+}
+```
+
+### 11.5 WebSocket Protocol
+
+**Endpoint**: `ws://localhost:8050/ws/updates`
+
+#### Subscribe (Client → Server)
+
+```json
+{
+  "action": "subscribe",
+  "channels": ["state", "alerts", "health"],
+  "exchanges": ["binance", "okx"],
+  "instruments": ["BTC-USDT-PERP"]
+}
+```
+
+#### State Update (Server → Client)
+
+```json
+{
+  "channel": "state",
+  "exchange": "binance",
+  "instrument": "BTC-USDT-PERP",
+  "timestamp": "2025-01-26T12:34:56.789Z",
+  "data": {
+    "spread_bps": "2.1",
+    "spread_zscore": "0.8",
+    "mid_price": "100234.56",
+    "depth_10bps": "1234000",
+    "imbalance": "0.12"
+  }
+}
+```
+
+#### Alert Update (Server → Client)
+
+```json
+{
+  "channel": "alerts",
+  "event": "triggered",
+  "alert": {
+    "alert_id": "alert_abc123",
+    "type": "basis_warning",
+    "priority": "P2",
+    ...
+  }
+}
+```
+
+#### Health Update (Server → Client)
+
+```json
+{
+  "channel": "health",
+  "timestamp": "2025-01-26T12:34:57Z",
+  "exchanges": {
+    "binance": { "status": "connected", "lag_ms": 23 },
+    "okx": { "status": "connected", "lag_ms": 18 }
+  }
+}
+```
+
+### 11.6 Update Mechanisms
+
+| Data | Source | Mechanism | Frequency |
+|------|--------|-----------|-----------|
+| Current state | Redis | WebSocket push | ~100ms (real-time) |
+| Active alerts | Redis | WebSocket push | On change |
+| Health status | Redis | WebSocket push | 1 second |
+| Chart history | PostgreSQL | REST poll | 5 seconds |
+| Initial page load | Both | REST fetch | Once |
+
+### 11.7 Warmup Indicator Display
+
+**During warmup:**
+
+```html
+<div class="metric-row">
+  <span class="label">Spread:</span>
+  <span class="value">2.1 bps</span>
+  <span class="status ok">🟢</span>
+</div>
+<div class="zscore warming">
+  ⏳ Z-Score warming up (15/30)
+</div>
+```
+
+**After warmup:**
+
+```html
+<div class="metric-row">
+  <span class="label">Spread:</span>
+  <span class="value">2.1 bps</span>
+  <span class="status ok">🟢</span>
+</div>
+<div class="zscore active">
+  Z-Score: 0.8σ
+</div>
+```
+
+### 11.8 File Structure
+
+```
+services/dashboard/
+├── main.py                 # Entry point, Uvicorn runner
+├── app.py                  # FastAPI app factory
+├── api/
+│   ├── __init__.py
+│   ├── state.py            # GET /api/state/*
+│   ├── alerts.py           # GET /api/alerts
+│   ├── metrics.py          # GET /api/metrics/*
+│   └── health.py           # GET /api/health
+├── websocket/
+│   ├── __init__.py
+│   └── updates.py          # WebSocket /ws/updates handler
+├── clients/
+│   ├── __init__.py
+│   ├── redis_client.py     # Async Redis client
+│   └── postgres_client.py  # Async PostgreSQL client
+├── static/
+│   ├── index.html          # Dashboard HTML
+│   ├── css/
+│   │   └── dashboard.css   # Dark theme styles
+│   └── js/
+│       ├── app.js          # Main controller
+│       ├── websocket.js    # WebSocket client
+│       ├── charts.js       # Plotly.js charts
+│       └── api.js          # REST API client
+└── Dockerfile
+```
+
+### 11.9 Dashboard Views
 
 | View | Description | Data Source |
 |------|-------------|-------------|
-| **Overview** | Current state + active alerts | Redis |
+| **Overview** | Current state + active alerts | Redis (via WebSocket) |
 | **Per-Instrument** | Deep dive into single instrument | Redis + TimescaleDB |
 | **Comparison** | Side-by-side normalized metrics | TimescaleDB |
 | **Alert History** | Historical alerts with filters | TimescaleDB |
-| **System Health** | Pipeline status, gaps, latency | Redis |
+| **System Health** | Pipeline status, gaps, latency | Redis (via WebSocket) |
 
-### 11.3 Interactivity
+### 11.10 Interactivity
 
 - Time range selector: 5m, 15m, 1h, 4h, 24h
 - Exchange filter: Binance, OKX, Both
@@ -1883,10 +2102,13 @@ When WebSocket fails:
 - [ ] Anomaly detection engine (dual conditions)
 - [ ] TimescaleDB storage
 - [ ] Gap detection and marking
-- [ ] Basic Plotly Dash dashboard
+- [ ] FastAPI REST API endpoints
+- [ ] WebSocket real-time handler
+- [ ] Basic Plotly.js dashboard HTML/JS
 
 ### Phase 3: Production Ready
-- [ ] Dashboard polish (all views)
+- [ ] Dashboard styling and responsiveness
+- [ ] OpenAPI documentation review
 - [ ] Alert throttling and escalation
 - [ ] System health monitoring
 - [ ] Configuration management
@@ -1914,7 +2136,7 @@ When WebSocket fails:
 | Alert evaluation | Threshold + Z-score | Reduces false positives in volatile regimes |
 | Z-score warmup | min_samples guard | Prevent false alerts on startup or after gaps |
 | Z-score min_std | 0.0001 threshold | Avoid infinite z-scores in flat markets |
-| Dashboard | Plotly Dash | More customizable than Streamlit |
+| Dashboard | FastAPI + Plotly.js | Async-native (no event loop conflicts), WebSocket real-time, auto OpenAPI docs, better separation of API and UI |
 | Deployment | Docker Compose | Portable, reproducible, service isolation |
 
 ---
@@ -1961,4 +2183,28 @@ See `config/alerts.yaml` for full configuration. Key points:
 
 ---
 
-*End of PRD v2.0*
+## Appendix D: Dashboard API Reference
+
+The dashboard provides a self-documenting REST API.
+
+| Documentation | URL |
+|--------------|-----|
+| Swagger UI | http://localhost:8050/docs |
+| ReDoc | http://localhost:8050/redoc |
+| OpenAPI JSON | http://localhost:8050/openapi.json |
+
+### API Endpoints Summary
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/state/{exchange}/{instrument} | Current metrics |
+| GET | /api/alerts | Active alerts with filters |
+| GET | /api/metrics/{type}/{exchange}/{instrument} | Historical data |
+| GET | /api/health | System health status |
+| WS | /ws/updates | Real-time push updates |
+
+All endpoints return JSON. No authentication in Phase 1.
+
+---
+
+*End of PRD v2.1*
