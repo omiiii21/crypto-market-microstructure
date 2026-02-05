@@ -1,0 +1,206 @@
+# Crypto Market Surveillance System
+# Docker Compose configuration for all services
+#
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose up -d redis timescaledb  # Start infrastructure only
+#   docker-compose logs -f dashboard  # Follow dashboard logs
+#   docker-compose down               # Stop all services
+#   docker-compose ps                 # Check service status
+#
+# Environment Variables:
+#   DB_PASSWORD       - PostgreSQL password (default: surveillance_dev)
+#   LOG_LEVEL         - Logging level (default: INFO)
+#   SLACK_WEBHOOK_URL - Slack webhook for alerts (optional)
+#   DASH_DEBUG        - Enable Dash debug mode (default: false)
+
+services:
+  # ============================================================================
+  # INFRASTRUCTURE SERVICES
+  # ============================================================================
+
+  redis:
+    image: redis:7-alpine
+    container_name: surveillance-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - surveillance-network
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: surveillance-db
+    environment:
+      POSTGRES_DB: surveillance
+      POSTGRES_USER: surveillance
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-surveillance_dev}
+      TIMESCALEDB_TELEMETRY: "off"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U surveillance -d surveillance"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - surveillance-network
+
+  # ============================================================================
+  # APPLICATION SERVICES
+  # ============================================================================
+
+  data-ingestion:
+    build:
+      context: .
+      dockerfile: ./services/data-ingestion/Dockerfile
+    container_name: surveillance-ingestion
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - CONFIG_PATH=/app/config
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+      - SERVICE_NAME=data-ingestion
+    volumes:
+      - ./config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis.from_url('redis://redis:6379'); r.ping()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - surveillance-network
+
+  metrics-engine:
+    build:
+      context: .
+      dockerfile: ./services/metrics-engine/Dockerfile
+    container_name: surveillance-metrics
+    depends_on:
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+      data-ingestion:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://surveillance:${DB_PASSWORD:-surveillance_dev}@timescaledb:5432/surveillance
+      - CONFIG_PATH=/app/config
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+      - SERVICE_NAME=metrics-engine
+    volumes:
+      - ./config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis.from_url('redis://redis:6379'); r.ping()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - surveillance-network
+
+  anomaly-detector:
+    build:
+      context: .
+      dockerfile: ./services/anomaly-detector/Dockerfile
+    container_name: surveillance-anomaly
+    depends_on:
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+      metrics-engine:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://surveillance:${DB_PASSWORD:-surveillance_dev}@timescaledb:5432/surveillance
+      - CONFIG_PATH=/app/config
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - SERVICE_NAME=anomaly-detector
+    volumes:
+      - ./config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.Redis.from_url('redis://redis:6379'); r.ping()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - surveillance-network
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: ./services/dashboard/Dockerfile
+    container_name: surveillance-dashboard
+    depends_on:
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    ports:
+      - "8050:8050"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://surveillance:${DB_PASSWORD:-surveillance_dev}@timescaledb:5432/surveillance
+      - CONFIG_PATH=/app/config
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+      - DASH_DEBUG=${DASH_DEBUG:-false}
+      - SERVICE_NAME=dashboard
+    volumes:
+      - ./config:/app/config:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8050/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - surveillance-network
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+
+networks:
+  surveillance-network:
+    name: surveillance-network
+    driver: bridge
