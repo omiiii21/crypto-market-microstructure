@@ -14,6 +14,9 @@ Real-time surveillance system for monitoring market quality and pricing integrit
 - **Configurable Alert Thresholds** - Asset-specific thresholds via YAML configuration
 - **Real-time Dashboard** - Web visualization for operations teams
 
+![Webpage](docs/Webpage.png)
+
+
 ## Documentation
 
 - [System Architecture](docs/ARCHITECTURE.md) - Understand the project 0 -> 100
