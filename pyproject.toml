@@ -1,0 +1,252 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crypto-market-surveillance"
+version = "0.1.0"
+description = "Real-time surveillance system for monitoring market quality and pricing integrity across crypto spot and derivatives markets"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Om Mengshetti"}
+]
+keywords = [
+    "crypto",
+    "market-microstructure",
+    "surveillance",
+    "derivatives",
+    "trading",
+    "orderbook",
+    "websocket"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    # Data validation
+    "pydantic>=2.0,<3.0",
+
+    # Async and networking
+    "aiohttp>=3.9.0,<4.0",
+    "websockets>=12.0,<13.0",
+
+    # Storage
+    "redis[hiredis]>=5.0.0,<6.0",
+    "asyncpg>=0.29.0,<1.0",
+
+    # Configuration
+    "pyyaml>=6.0,<7.0",
+
+    # Logging
+    "structlog>=24.0.0,<25.0",
+
+    # Dashboard
+    "plotly>=5.18.0,<6.0",
+    "dash>=2.14.0,<3.0",
+    "dash-bootstrap-components>=1.5.0,<2.0",
+
+    # Data processing
+    "numpy>=1.26.0,<2.0",
+    "pandas>=2.1.0,<3.0",
+
+    # JSON serialization (fast)
+    "orjson>=3.9.0,<4.0",
+
+    # Retry logic
+    "tenacity>=8.2.0,<9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.4.0,<8.0",
+    "pytest-asyncio>=0.23.0,<1.0",
+    "pytest-cov>=4.1.0,<5.0",
+    "pytest-mock>=3.12.0,<4.0",
+
+    # Type checking
+    "mypy>=1.8.0,<2.0",
+    "types-PyYAML>=6.0.0,<7.0",
+    "types-redis>=4.6.0,<5.0",
+
+    # Code formatting
+    "black>=24.0.0,<25.0",
+    "ruff>=0.1.0,<1.0",
+
+    # Pre-commit hooks
+    "pre-commit>=3.6.0,<4.0",
+]
+
+[project.scripts]
+surveillance-ingest = "services.data_ingestion.main:main"
+surveillance-metrics = "services.metrics_engine.main:main"
+surveillance-detect = "services.anomaly_detector.main:main"
+surveillance-dashboard = "services.dashboard.main:main"
+
+[project.urls]
+Documentation = "https://github.com/yourusername/crypto-market-microstructure#readme"
+Repository = "https://github.com/yourusername/crypto-market-microstructure"
+Issues = "https://github.com/yourusername/crypto-market-microstructure/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "services*"]
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]
+
+# =============================================================================
+# MYPY CONFIGURATION
+# =============================================================================
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+show_column_numbers = true
+pretty = true
+
+# Pydantic plugin for better type inference
+plugins = ["pydantic.mypy"]
+
+# Per-module overrides
+[[tool.mypy.overrides]]
+module = [
+    "aiohttp.*",
+    "websockets.*",
+    "redis.*",
+    "asyncpg.*",
+    "dash.*",
+    "dash_bootstrap_components.*",
+    "plotly.*",
+    "orjson.*",
+]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# =============================================================================
+# BLACK CONFIGURATION
+# =============================================================================
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.mypy_cache
+    | \.pytest_cache
+    | \.venv
+    | venv
+    | __pycache__
+    | dist
+    | build
+)/
+'''
+
+# =============================================================================
+# RUFF CONFIGURATION
+# =============================================================================
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate (commented out code)
+    "PL",     # pylint
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by black)
+    "PLR0913", # too many arguments to function call
+    "PLR2004", # magic value used in comparison
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG", "PLR2004"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "services"]
+force-sort-within-sections = true
+
+# =============================================================================
+# PYTEST CONFIGURATION
+# =============================================================================
+[tool.pytest.ini_options]
+minversion = "7.0"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "-ra",
+    "--tb=short",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# =============================================================================
+# COVERAGE CONFIGURATION
+# =============================================================================
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+    "@overload",
+]
+show_missing = true
+precision = 2
+fail_under = 80
