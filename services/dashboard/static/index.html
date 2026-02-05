@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Market Microstructure</title>
+
+    <!-- Plotly.js CDN -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+    <!-- Dashboard CSS -->
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="dashboard-header">
+        <div class="header-content">
+            <div class="header-title">
+                <h1>CRYPTO MARKET MICROSTRUCTURE</h1>
+                <span class="instrument-label" id="current-instrument">BTC-USDT-PERP</span>
+            </div>
+
+            <div class="header-controls">
+                <!-- Exchange Filter -->
+                <div class="filter-group">
+                    <button class="filter-btn" data-exchange="binance">Binance</button>
+                    <button class="filter-btn" data-exchange="okx">OKX</button>
+                    <button class="filter-btn active" data-exchange="all">Both</button>
+                </div>
+
+                <!-- Time Range Selector -->
+                <div class="filter-group">
+                    <button class="time-btn" data-range="5m">5m</button>
+                    <button class="time-btn" data-range="15m">15m</button>
+                    <button class="time-btn active" data-range="1h">1h</button>
+                    <button class="time-btn" data-range="4h">4h</button>
+                    <button class="time-btn" data-range="24h">24h</button>
+                </div>
+
+                <!-- Last Update -->
+                <div class="last-update">
+                    <span id="last-update-time">--:--:-- UTC</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="dashboard-main">
+        <!-- Row 1: Current State and Active Alerts -->
+        <div class="dashboard-row">
+            <!-- Current State Panel -->
+            <div class="panel panel-state">
+                <div class="panel-header">
+                    <h2>CURRENT STATE</h2>
+                    <span class="exchange-label" id="state-exchange">All Exchanges</span>
+                </div>
+                <div class="panel-content">
+                    <!-- Spread Metric -->
+                    <div class="metric-card">
+                        <div class="metric-label">Spread</div>
+                        <div class="metric-value-row">
+                            <span class="metric-value" id="metric-spread">--</span>
+                            <span class="metric-unit">bps</span>
+                            <span class="status-indicator" id="status-spread"></span>
+                        </div>
+                        <div class="zscore-row" id="zscore-spread">
+                            Z-Score: --
+                        </div>
+                    </div>
+
+                    <!-- Depth Metric -->
+                    <div class="metric-card">
+                        <div class="metric-label">Depth (10 bps)</div>
+                        <div class="metric-value-row">
+                            <span class="metric-value" id="metric-depth">--</span>
+                            <span class="status-indicator" id="status-depth"></span>
+                        </div>
+                    </div>
+
+                    <!-- Basis Metric -->
+                    <div class="metric-card">
+                        <div class="metric-label">Basis</div>
+                        <div class="metric-value-row">
+                            <span class="metric-value" id="metric-basis">--</span>
+                            <span class="metric-unit">bps</span>
+                            <span class="status-indicator" id="status-basis"></span>
+                        </div>
+                        <div class="zscore-row" id="zscore-basis">
+                            Z-Score: --
+                        </div>
+                    </div>
+
+                    <!-- Imbalance Metric -->
+                    <div class="metric-card">
+                        <div class="metric-label">Imbalance</div>
+                        <div class="metric-value-row">
+                            <span class="metric-value" id="metric-imbalance">--</span>
+                            <span class="status-indicator" id="status-imbalance"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Alerts Panel -->
+            <div class="panel panel-alerts">
+                <div class="panel-header">
+                    <h2>ACTIVE ALERTS</h2>
+                    <span class="alert-count" id="alert-count">0</span>
+                </div>
+                <div class="panel-content" id="alerts-container">
+                    <div class="no-alerts">No active alerts</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2: Spread Time Series -->
+        <div class="dashboard-row">
+            <div class="panel panel-chart">
+                <div class="panel-header">
+                    <h2>SPREAD TIME SERIES</h2>
+                    <div class="chart-options">
+                        <label>
+                            <input type="checkbox" id="spread-show-thresholds" checked>
+                            Thresholds
+                        </label>
+                        <label>
+                            <input type="checkbox" id="spread-show-zscore">
+                            Z-Score
+                        </label>
+                    </div>
+                </div>
+                <div class="panel-content chart-container">
+                    <div id="spread-chart"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 3: Basis Time Series -->
+        <div class="dashboard-row">
+            <div class="panel panel-chart">
+                <div class="panel-header">
+                    <h2>BASIS TIME SERIES</h2>
+                    <div class="chart-options">
+                        <label>
+                            <input type="checkbox" id="basis-show-thresholds" checked>
+                            Thresholds
+                        </label>
+                        <label>
+                            <input type="checkbox" id="basis-show-zscore">
+                            Z-Score
+                        </label>
+                    </div>
+                </div>
+                <div class="panel-content chart-container">
+                    <div id="basis-chart"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 4: Depth Heatmap and Cross-Exchange -->
+        <div class="dashboard-row">
+            <!-- Depth Heatmap -->
+            <div class="panel panel-depth">
+                <div class="panel-header">
+                    <h2>ORDER BOOK DEPTH</h2>
+                    <select id="depth-exchange-select">
+                        <option value="binance">Binance</option>
+                        <option value="okx">OKX</option>
+                    </select>
+                </div>
+                <div class="panel-content">
+                    <div id="depth-chart"></div>
+                    <div class="imbalance-display">
+                        <span class="label">Imbalance:</span>
+                        <span class="value" id="depth-imbalance">--</span>
+                        <span class="direction" id="depth-direction"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cross-Exchange Comparison -->
+            <div class="panel panel-cross-exchange">
+                <div class="panel-header">
+                    <h2>CROSS-EXCHANGE COMPARISON</h2>
+                </div>
+                <div class="panel-content">
+                    <div class="exchange-row">
+                        <span class="exchange-name">Binance:</span>
+                        <span class="exchange-price" id="binance-price">$--</span>
+                        <span class="exchange-spread" id="binance-spread">-- bps</span>
+                    </div>
+                    <div class="exchange-row">
+                        <span class="exchange-name">OKX:</span>
+                        <span class="exchange-price" id="okx-price">$--</span>
+                        <span class="exchange-spread" id="okx-spread">-- bps</span>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="divergence-row">
+                        <span class="label">Divergence:</span>
+                        <span class="value" id="divergence-value">-- bps</span>
+                        <span class="status" id="divergence-status"></span>
+                    </div>
+                    <div class="price-diff-row">
+                        <span class="label">Price Diff:</span>
+                        <span class="value" id="price-diff">$--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 5: System Health -->
+        <div class="dashboard-row">
+            <div class="panel panel-health">
+                <div class="panel-header">
+                    <h2>SYSTEM HEALTH</h2>
+                    <span class="overall-status" id="overall-status">Unknown</span>
+                </div>
+                <div class="panel-content">
+                    <div class="health-grid">
+                        <!-- Binance Health -->
+                        <div class="health-card">
+                            <div class="health-header">
+                                <span class="health-name">Binance</span>
+                                <span class="health-status" id="health-status-binance"></span>
+                            </div>
+                            <div class="health-metrics">
+                                <div class="health-metric">
+                                    <span class="label">Lag:</span>
+                                    <span class="value" id="health-lag-binance">-- ms</span>
+                                </div>
+                                <div class="health-metric">
+                                    <span class="label">Rate:</span>
+                                    <span class="value" id="health-rate-binance">--/min</span>
+                                </div>
+                                <div class="health-metric">
+                                    <span class="label">Gaps:</span>
+                                    <span class="value" id="health-gaps-binance">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- OKX Health -->
+                        <div class="health-card">
+                            <div class="health-header">
+                                <span class="health-name">OKX</span>
+                                <span class="health-status" id="health-status-okx"></span>
+                            </div>
+                            <div class="health-metrics">
+                                <div class="health-metric">
+                                    <span class="label">Lag:</span>
+                                    <span class="value" id="health-lag-okx">-- ms</span>
+                                </div>
+                                <div class="health-metric">
+                                    <span class="label">Rate:</span>
+                                    <span class="value" id="health-rate-okx">--/min</span>
+                                </div>
+                                <div class="health-metric">
+                                    <span class="label">Gaps:</span>
+                                    <span class="value" id="health-gaps-okx">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Infrastructure Health -->
+                        <div class="health-card health-infra">
+                            <div class="health-header">
+                                <span class="health-name">Infrastructure</span>
+                            </div>
+                            <div class="health-metrics">
+                                <div class="health-metric">
+                                    <span class="label">Redis:</span>
+                                    <span class="value" id="health-redis"></span>
+                                </div>
+                                <div class="health-metric">
+                                    <span class="label">PostgreSQL:</span>
+                                    <span class="value" id="health-postgres"></span>
+                                </div>
+                                <div class="health-metric">
+                                    <span class="label">Uptime:</span>
+                                    <span class="value" id="health-uptime">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Connection Status Overlay -->
+    <div class="connection-status" id="connection-status">
+        <span class="status-icon"></span>
+        <span class="status-text">Connecting...</span>
+    </div>
+
+    <!-- JavaScript Modules -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/websocket.js"></script>
+    <script src="/static/js/charts.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
