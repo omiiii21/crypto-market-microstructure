@@ -1,0 +1,21 @@
+# Railway configuration for the Dashboard service.
+# FastAPI + Uvicorn server exposing REST and WebSocket endpoints.
+# Railway injects $PORT automatically; the Dockerfile CMD reads it.
+#
+# Required environment variables (set in Railway dashboard):
+#   REDIS_URL    = ${{Redis.REDIS_URL}}
+#   DATABASE_URL = postgresql://<user>:<pass>@<timescaledb-host>:5432/surveillance
+#   CONFIG_PATH  = config
+#   LOG_LEVEL    = INFO
+#   LOG_FORMAT   = json
+#   SERVICE_NAME = dashboard
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/dashboard/Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

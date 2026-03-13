@@ -1,0 +1,14 @@
+# Railway configuration for the TimescaleDB service.
+# Build context is the repo root so the Dockerfile can reach db/init.sql.
+#
+# Required environment variables (set in Railway dashboard):
+#   POSTGRES_DB       = surveillance
+#   POSTGRES_USER     = surveillance
+#   POSTGRES_PASSWORD = <strong secret>
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/timescaledb/Dockerfile"
+
+[deploy]
+restartPolicyType = "ALWAYS"

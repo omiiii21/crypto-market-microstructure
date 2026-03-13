@@ -18,8 +18,10 @@ WORKDIR /app
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PORT=8050
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -56,7 +58,9 @@ EXPOSE 8050
 
 # Health check - updated endpoint for FastAPI
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8050/api/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8050}/api/health || exit 1
 
 # Run with Uvicorn ASGI server
-CMD ["python", "-m", "uvicorn", "services.dashboard.app:app", "--host", "0.0.0.0", "--port", "8050"]
+# Use shell form so $PORT is expanded at runtime.
+# Railway injects PORT automatically; locally falls back to 8050.
+CMD uvicorn services.dashboard.app:app --host 0.0.0.0 --port ${PORT:-8050}
