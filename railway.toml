@@ -1,0 +1,16 @@
+# Root-level Railway configuration.
+# This file is picked up automatically when the service root directory is set to "/".
+#
+# This configures the DASHBOARD service.
+# For the other services (data-ingestion, metrics-engine, anomaly-detector, timescaledb)
+# set Builder = Dockerfile and the correct Dockerfile path in the Railway UI per service.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "services/dashboard/Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
